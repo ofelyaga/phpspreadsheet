@@ -1,0 +1,17 @@
+{
+    "name": "galoy/speadsheet-my",
+    "autoload": {
+        "psr-4": {
+            "Galoy\\SpeadsheetMy\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Ofelya",
+            "email": "87889075+ofelyaga@users.noreply.github.com"
+        }
+    ],
+    "require": {
+        "phpoffice/phpspreadsheet": "^1.29"
+    }
+}
