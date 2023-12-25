@@ -105,26 +105,26 @@ foreach($names as $key => $name){
 	$writer->save(__DIR__ . '/tables/' . $ffname . '.xlsx');
 };
 
-// Get the files in the folder
-$files = new RecursiveDirectoryIterator('C:\OSPanel\domains\phpspreadsheet\tables');
-echo $files;
-$iterator = new RecursiveIteratorIterator($files);
-$fileNames = new RecursiveIteratorIterator($iterator);
-$fileNames->setIterateOnlyExisting(false);
-
-foreach ($fileNames as $fileName) {
-    // Check if the file is an Excel file
-    if ($fileName->getExtension() === 'xlsx') {
-        $spreadsheet = IOFactory::load($fileName->getPath());
-
-        $sheet = $spreadsheet->addSheet('Sheet1');
-        $sheet->setTitle('Sheet1');
-        $sheet->setDefaultColumnWidth(10);
-
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $writer->save($fileName->getPath());
-    }
-}
+//// Get the files in the folder
+//$files = new RecursiveDirectoryIterator('C:\OSPanel\domains\phpspreadsheet\tables');
+//echo $files;
+//$iterator = new RecursiveIteratorIterator($files);
+//$fileNames = new RecursiveIteratorIterator($iterator);
+//$fileNames->setIterateOnlyExisting(false);
+//
+//foreach ($fileNames as $fileName) {
+//    // Check if the file is an Excel file
+//    if ($fileName->getExtension() === 'xlsx') {
+//        $spreadsheet = IOFactory::load($fileName->getPath());
+//
+//        $sheet = $spreadsheet->addSheet('Sheet1');
+//        $sheet->setTitle('Sheet1');
+//        $sheet->setDefaultColumnWidth(10);
+//
+//        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+//        $writer->save($fileName->getPath());
+//    }
+//}
 
 
 
