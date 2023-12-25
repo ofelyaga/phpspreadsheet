@@ -66,15 +66,21 @@ for($i = 0; $i < count($names); $i++) $names[$i] = mb_trim($names[$i]);
 
 $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader("Xlsx");
 $spreadsheet = $reader->load("export.xlsx");
-
-foreach($names as $name){
+$sum = 0;
+foreach($names as $key => $name){
 	$sheet = $spreadsheet->getSheetByName('Object');
 	$lines = [];
+    $linesno = [];
 	foreach($sheet->getRowIterator() as $row){
 		$cellIterator = $row->getCellIterator();
 		foreach($cellIterator as $cell){
 			$val = $cell->getValue();
-			if(mb_stripos($val, $name) !== false) $lines[] = [$val];
+            $valno = $cell->getValue();
+			if(mb_stripos($val, $name) !== false) {
+                $lines[] = [$val];
+            } else if (mb_stripos($val, $name) == false) {
+                $linesno[]=[$valno];
+            };
 		}
 	}
 	
@@ -91,8 +97,35 @@ foreach($names as $name){
 	
 	$ffname = translit_file($fname);
 	echo $ffname . '<br>';
-	
-	$writer = ExcelIOFactory::createWriter($nameSp, 'Xlsx');
+    echo count($lines);
+    $countn = count($linesno);
+    $sum+=$countn;
+
+    $writer = ExcelIOFactory::createWriter($nameSp, 'Xlsx');
 	$writer->save(__DIR__ . '/tables/' . $ffname . '.xlsx');
+};
+
+// Get the files in the folder
+$files = new RecursiveDirectoryIterator('C:\OSPanel\domains\phpspreadsheet\tables');
+echo $files;
+$iterator = new RecursiveIteratorIterator($files);
+$fileNames = new RecursiveIteratorIterator($iterator);
+$fileNames->setIterateOnlyExisting(false);
+
+foreach ($fileNames as $fileName) {
+    // Check if the file is an Excel file
+    if ($fileName->getExtension() === 'xlsx') {
+        $spreadsheet = IOFactory::load($fileName->getPath());
+
+        $sheet = $spreadsheet->addSheet('Sheet1');
+        $sheet->setTitle('Sheet1');
+        $sheet->setDefaultColumnWidth(10);
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer->save($fileName->getPath());
+    }
 }
+
+
+
 ?>
