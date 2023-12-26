@@ -3,6 +3,15 @@ ini_set('display_errors', '1');
 ini_set('display_startup_errors', '1');
 error_reporting(E_ALL);
 
+function listFolderFiles($dir): array{
+    $ffs = scandir($dir);
+
+    unset($ffs[array_search('.', $ffs, true)]);
+    unset($ffs[array_search('..', $ffs, true)]);
+
+    return $ffs;
+}
+
 function mb_trim($str) {
 	return preg_replace("/^\s+|\s+$/u", "", $str); 
 }
@@ -25,33 +34,19 @@ function translit_file($filename){
 		'Ш' => 'Sh',   'Щ' => 'Sch',  'Ь' => '',     'Ы' => 'Y',    'Ъ' => '',
 		'Э' => 'E',    'Ю' => 'Yu',   'Я' => 'Ya',
 	);
+
+    $newFilename = strtr($filename, $converter);
+
+    $newFilename = mb_ereg_replace('[^\w]', ' ', $newFilename);
+    $newFilename = mb_ereg_replace('\s+', ' ', $newFilename);
 	
-	$new = '';
-	
-	$file = pathinfo(trim($filename));
-	if (!empty($file['dirname']) && @$file['dirname'] != '.') {
-		$new .= rtrim($file['dirname'], '/') . '/';
-	}
- 
-	if (!empty($file['filename'])) {
-		$file['filename'] = str_replace(array(' ', ','), '-', $file['filename']);
-		$file['filename'] = strtr($file['filename'], $converter);
-		$file['filename'] = mb_ereg_replace('[-]+', '-', $file['filename']);
-		$file['filename'] = trim($file['filename'], '-');					
-		$new .= $file['filename'];
-	}
- 
-	if (!empty($file['extension'])) {
-		$new .= '.' . $file['extension'];
-	}
-	
-	return $new;
+	return $newFilename;
 }
 
 require_once __DIR__ . '/vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Style;
+use PhpOffice\PhpSpreadsheet\Spreadsheet\Style;
 use PhpOffice\PhpSpreadsheet\Chart\Chart;
 use PhpOffice\PhpSpreadsheet\Chart\DataSeries;
 use PhpOffice\PhpSpreadsheet\Chart\DataSeriesValues;
@@ -66,66 +61,122 @@ for($i = 0; $i < count($names); $i++) $names[$i] = mb_trim($names[$i]);
 
 $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader("Xlsx");
 $spreadsheet = $reader->load("export.xlsx");
-$sum = 0;
-foreach($names as $key => $name){
+
+$exTables = ['p1.XLSX', 'p2.XLSX', 'p3.XLSX'];
+$exSheets = [];
+foreach($exTables as $spreadsheetName) {
+    $pSpreadsheet = $reader->load($spreadsheetName);
+    $exSheets[] = $pSpreadsheet;
+}
+
+foreach($names as $name){
 	$sheet = $spreadsheet->getSheetByName('Object');
 	$lines = [];
-    $linesno = [];
 	foreach($sheet->getRowIterator() as $row){
 		$cellIterator = $row->getCellIterator();
 		foreach($cellIterator as $cell){
 			$val = $cell->getValue();
-            $valno = $cell->getValue();
 			if(mb_stripos($val, $name) !== false) {
-                $lines[] = [$val];
-            } else if (mb_stripos($val, $name) == false) {
-                $linesno[]=[$valno];
-            };
+                $lastVal = array_reverse(explode('\\', $val))[0] ?? '0';
+                $lines[] = [$val, $lastVal];
+            }
 		}
 	}
-	
-	$fname = mb_ereg_replace('[^\w]', ' ', $name);
-	$fname = mb_ereg_replace('\s+', ' ', $fname);
-	
+
+    $ffname = translit_file($name);
 	$nameSp = new Spreadsheet();
 	$nameSp->removeSheetByIndex(0);
-	$wsh = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($nameSp, $fname);
+	$wsh = new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($nameSp, $ffname);
 	$nameSp->addSheet($wsh, 0);
 	$wsh->getColumnDimension('A')->setWidth(30);
-	
+
 	$wsh->fromArray($lines, NULL, 'A1');
-	
-	$ffname = translit_file($fname);
-	echo $ffname . '<br>';
-    echo count($lines);
-    $countn = count($linesno);
-    $sum+=$countn;
 
-    $writer = ExcelIOFactory::createWriter($nameSp, 'Xlsx');
+    $pNewSheet = null;
+    $rowOffset = 0;
+    foreach($exSheets as $exSheet){
+        $pSheets = $exSheet->getAllSheets();
+
+        foreach($pSheets as $pSheet){
+            $pTranslited = translit_file($pSheet->getTitle());
+            if($pTranslited == $ffname){
+                $pNewSheet ??= new \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet($nameSp, 'Equals');
+
+                $lines = [];
+                foreach($pSheet->getRowIterator() as $row){
+                    if($row->getRowIndex() == 0 || $row->getRowIndex() == 1) continue;
+                    $cellIterator = $row->getCellIterator();
+                    $line = [];
+                    foreach($cellIterator as $cell){
+                        $val = $cell->getValue();
+                        $line[] = $val;
+                    }
+
+                    $lines[] = array_reverse($line);
+                }
+                $pNewSheet->fromArray($lines, NULL, 'A' . ($rowOffset + 1));
+                $rowOffset += count($lines);
+            }
+        }
+    }
+    if($pNewSheet != null) $nameSp->addSheet($pNewSheet, 1);
+
+    echo $ffname;
+    if($pNewSheet != null) echo ' +';
+    echo '<br>';
+
+	$writer = ExcelIOFactory::createWriter($nameSp, 'Xlsx');
 	$writer->save(__DIR__ . '/tables/' . $ffname . '.xlsx');
-};
+}
 
-//// Get the files in the folder
-//$files = new RecursiveDirectoryIterator('C:\OSPanel\domains\phpspreadsheet\tables');
-//echo $files;
-//$iterator = new RecursiveIteratorIterator($files);
-//$fileNames = new RecursiveIteratorIterator($iterator);
-//$fileNames->setIterateOnlyExisting(false);
-//
-//foreach ($fileNames as $fileName) {
-//    // Check if the file is an Excel file
-//    if ($fileName->getExtension() === 'xlsx') {
-//        $spreadsheet = IOFactory::load($fileName->getPath());
-//
-//        $sheet = $spreadsheet->addSheet('Sheet1');
-//        $sheet->setTitle('Sheet1');
-//        $sheet->setDefaultColumnWidth(10);
-//
-//        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-//        $writer->save($fileName->getPath());
-//    }
-//}
+foreach(listFolderFiles('./tables') as $filename){
+    $filePath = 'tables/' . $filename;
 
+    $tSpreadsheet = $reader->load($filePath);
+    $sheets = $tSpreadsheet->getAllSheets();
+    if(count($sheets) < 2) continue;
 
+    $linesFirst = [];
+    $linesSecond = [];
+    foreach($sheets[0]->getRowIterator() as $firstRow){
+        $line = [];
+        foreach($firstRow->getCellIterator() as $cell) {
+            $val = $cell->getValue();
+            $line[] = $val;
+        }
 
+        for($i = count($line); $i < 2; $i++) $line[$i] = null;
+        $linesFirst[] = $line;
+    }
+
+    foreach($sheets[1]->getRowIterator() as $firstRow){
+        $line = [];
+        foreach($firstRow->getCellIterator() as $cell){
+            $val = $cell->getValue();
+            $line[] = $val;
+        }
+
+        for($i = count($line); $i < 2; $i++) $line[$i] = null;
+        $linesSecond[] = $line;
+    }
+
+    $newLinesFirst = [];
+    foreach($linesFirst as $lineFirst){
+        $hasEqual = false;
+        foreach($linesSecond as $lineSecond){
+            if($lineFirst[1] != null && $lineSecond[0] != null && mb_trim($lineSecond[0]) != '' && translit_file($lineFirst[1]) == translit_file($lineSecond[0])){
+                $newLinesFirst[] = [$lineSecond[0], $lineSecond[1]];
+                $hasEqual = true;
+                break;
+            }
+        }
+
+        if(!$hasEqual) $newLinesFirst[] = ['', ''];
+    }
+
+    $sheets[0]->fromArray($newLinesFirst, NULL, 'C1');
+
+    $writer = ExcelIOFactory::createWriter($tSpreadsheet, 'Xlsx');
+    $writer->save($filePath);
+}
 ?>
